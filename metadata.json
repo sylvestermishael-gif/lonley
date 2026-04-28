@@ -1,0 +1,6 @@
+{
+  "name": "Remix: Zuma Hearth - Premium Nigerian Fusion",
+  "description": "An elegant dining experience in Abuja, offering contemporary Nigerian fusion cuisine secured by Firebase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["firebase"]
+}
