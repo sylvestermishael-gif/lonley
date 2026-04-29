@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Truck, Package, MapPin, CreditCard, ChevronRight, Wallet, Mail } from 'lucide-react';
-import { usePaystackPayment } from 'react-paystack';
+import { X, Truck, Package, MapPin, CreditCard, ChevronRight, Mail, User } from 'lucide-react';
 import { CartItem, CheckoutData } from '../types';
 import { formatPrice } from '../lib/utils';
 import { auth } from '../lib/firebase';
@@ -10,7 +9,7 @@ interface CheckoutModalProps {
   isOpen: boolean;
   onClose: () => void;
   cartItems: CartItem[];
-  onSubmit: (data: CheckoutData, paymentReference?: string) => void;
+  onSubmit: (data: CheckoutData) => void;
   isProcessing?: boolean;
 }
 
@@ -23,40 +22,18 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
     email: auth.currentUser?.email || '',
     address: '',
     notes: '',
-    type: 'delivery',
-    paymentMethod: 'online'
+    type: 'delivery'
   });
 
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryFee = formData.type === 'delivery' ? 2500 : 0;
   const finalAmount = total + deliveryFee;
 
-  // Paystack Config
-  const config = {
-    reference: (new Date()).getTime().toString(),
-    email: formData.email,
-    amount: finalAmount * 100, // Amount is in kobo (NGN * 100)
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || '',
-  };
-
-  const initializePayment = usePaystackPayment(config);
-
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
 
   const handlePlaceOrder = () => {
-    if (formData.paymentMethod === 'online') {
-      initializePayment({
-        onSuccess: (reference: { reference: string }) => {
-          onSubmit(formData, reference.reference);
-        },
-        onClose: () => {
-          // Do nothing or show message
-        }
-      });
-    } else {
-      onSubmit(formData);
-    }
+    onSubmit(formData);
   };
 
   if (!isOpen) return null;
@@ -110,12 +87,12 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
         {/* Main Form Area */}
         <div className="flex-1 p-8 overflow-y-auto">
           <div className="flex items-center gap-4 mb-8">
-            {[1, 2, 3, 4].map(i => (
+            {[1, 2, 3].map(i => (
               <div key={i} className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${step >= i ? 'bg-brand-primary text-white' : 'bg-gray-100 text-gray-400'}`}>
                   {i}
                 </div>
-                {i < 4 && <div className={`w-8 h-px ${step > i ? 'bg-brand-primary' : 'bg-gray-200'}`} />}
+                {i < 3 && <div className={`w-8 h-px ${step > i ? 'bg-brand-primary' : 'bg-gray-200'}`} />}
               </div>
             ))}
           </div>
@@ -177,12 +154,15 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Full Name</label>
-                    <input 
-                      type="text" 
-                      className="w-full border-b-2 border-gray-100 py-3 focus:outline-none focus:border-brand-primary" 
-                      value={formData.name}
-                      onChange={e => setFormData({...formData, name: e.target.value})}
-                    />
+                    <div className="relative">
+                      <User className="absolute left-0 top-1/2 -translate-y-1/2 text-brand-primary" size={18} />
+                      <input 
+                        type="text" 
+                        className="w-full border-b-2 border-gray-100 py-3 pl-8 focus:outline-none focus:border-brand-primary" 
+                        value={formData.name}
+                        onChange={e => setFormData({...formData, name: e.target.value})}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Phone Number</label>
@@ -242,53 +222,6 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="space-y-6"
-              >
-                <div>
-                  <h2 className="text-3xl font-serif mb-2">Payment Choice</h2>
-                  <p className="text-gray-500 text-sm italic">Securely settle your order.</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setFormData({...formData, paymentMethod: 'online'})}
-                    className={`p-6 border-2 transition-all text-left flex flex-col gap-3 rounded-none ${formData.paymentMethod === 'online' ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-100 hover:border-gray-200'}`}
-                  >
-                    <Wallet size={24} className={formData.paymentMethod === 'online' ? 'text-brand-primary' : 'text-gray-400'} />
-                    <div>
-                      <h4 className="font-bold text-sm tracking-widest uppercase">Pay Now</h4>
-                      <p className="text-xs text-gray-500">Fast & Secure Online Payment</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setFormData({...formData, paymentMethod: 'on-delivery'})}
-                    className={`p-6 border-2 transition-all text-left flex flex-col gap-3 rounded-none ${formData.paymentMethod === 'on-delivery' ? 'border-brand-primary bg-brand-primary/5' : 'border-gray-100 hover:border-gray-200'}`}
-                  >
-                    <CreditCard size={24} className={formData.paymentMethod === 'on-delivery' ? 'text-brand-primary' : 'text-gray-400'} />
-                    <div>
-                      <h4 className="font-bold text-sm tracking-widest uppercase">Pay Later</h4>
-                      <p className="text-xs text-gray-500">POS or Cash on {formData.type}</p>
-                    </div>
-                  </button>
-                </div>
-                
-                <div className="pt-8 border-t border-gray-100 flex justify-between">
-                  <button onClick={handleBack} className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-brand-dark transition-colors">
-                    Go Back
-                  </button>
-                  <button onClick={handleNext} className="btn-premium flex items-center gap-2">
-                    Review Order <ChevronRight size={18} />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 4 && (
-              <motion.div
-                key="step4"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
                 className="space-y-8"
               >
                 <div className="bg-brand-primary/5 p-6 space-y-4">
@@ -296,10 +229,7 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
                   <div className="flex items-center gap-3 text-sm text-gray-600">
                     <CreditCard size={18} />
                     <span>
-                      {formData.paymentMethod === 'online' 
-                        ? 'You will be redirected to secure checkout.' 
-                        : `Payment will be made on ${formData.type} via POS or Cash.`
-                      }
+                      Payment will be made on {formData.type} via POS or Cash.
                     </span>
                   </div>
                   <div className="grid grid-cols-2 gap-8 pt-4">
@@ -337,7 +267,7 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
                         Processing Order...
                       </span>
                     ) : (
-                      formData.paymentMethod === 'online' ? 'Pay & Place Order' : 'Confirm & Place Order'
+                      'Confirm & Place Order'
                     )}
                   </button>
                 </div>

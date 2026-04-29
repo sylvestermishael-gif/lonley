@@ -131,16 +131,6 @@ export default function OrderTracking({ onBack }: OrderTrackingProps) {
                   </div>
 
                   <div className="flex items-center gap-8">
-                    <div className="text-right hidden lg:block">
-                      <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Payment</p>
-                      <div className={cn(
-                        'px-3 py-1 rounded-full text-[9px] font-bold uppercase tracking-wider text-center',
-                        order.paymentStatus === 'paid' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
-                      )}>
-                        {order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
-                      </div>
-                    </div>
-
                     <div className="text-right hidden sm:block">
                       <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1">Total</p>
                       <p className="text-lg font-bold text-brand-primary">{formatPrice(order.total)}</p>
@@ -187,27 +177,6 @@ export default function OrderTracking({ onBack }: OrderTrackingProps) {
                             <div>
                               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Phone</p>
                               <p className="text-sm font-medium">{order.phone}</p>
-                            </div>
-                            <div className="pt-4 border-t border-brand-primary/5">
-                              <h6 className="text-[10px] font-bold uppercase tracking-widest text-brand-primary mb-2">Payment Info</h6>
-                              <div className="flex items-center justify-between text-sm">
-                                <span className="text-gray-500">Method:</span>
-                                <span className="font-medium uppercase">{order.paymentMethod}</span>
-                              </div>
-                              <div className="flex items-center justify-between text-sm mt-1">
-                                <span className="text-gray-500">Status:</span>
-                                <span className={cn(
-                                  "font-bold",
-                                  order.paymentStatus === 'paid' ? "text-green-600" : "text-amber-600"
-                                )}>
-                                  {order.paymentStatus === 'paid' ? "SUCCESSFUL" : "PENDING"}
-                                </span>
-                              </div>
-                              {order.paymentReference && (
-                                <div className="text-[9px] text-gray-400 mt-2 break-all">
-                                  Ref: {order.paymentReference}
-                                </div>
-                              )}
                             </div>
                           </div>
                         </div>

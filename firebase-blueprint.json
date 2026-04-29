@@ -28,8 +28,6 @@
         "items": { "type": "array" },
         "total": { "type": "number" },
         "status": { "type": "string", "enum": ["pending", "confirmed", "delivering", "completed", "cancelled"] },
-        "paymentStatus": { "type": "string", "enum": ["pending", "paid", "failed"] },
-        "paymentReference": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["name", "phone", "address", "type", "items", "total", "status", "createdAt"]

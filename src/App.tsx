@@ -90,7 +90,7 @@ export default function App() {
     setCart(prev => prev.filter(i => i.id !== id));
   }, []);
 
-  const handleCheckout = async (data: CheckoutData, paymentReference?: string) => {
+  const handleCheckout = async (data: CheckoutData) => {
     setIsProcessing(true);
     
     // Construct WhatsApp Message
@@ -99,7 +99,7 @@ export default function App() {
     const grandTotal = total + deliveryFee;
 
     const orderDetailsStr = cart.map(item => `• ${item.quantity}x ${item.name} (${formatPrice(item.price * item.quantity)})`).join('%0A');
-    const message = `*NEW ORDER - ZUMA HEARTH*%0A%0A*Customer:* ${data.name}%0A*Phone:* ${data.phone}%0A*Address:* ${data.address}%0A*Type:* ${data.type.toUpperCase()}%0A*Payment:* ${data.paymentMethod.toUpperCase()}${paymentReference ? ` (Paid: ${paymentReference})` : ''}%0A%0A*Order:*%0A${orderDetailsStr}%0A%0A*Subtotal:* ${formatPrice(total)}%0A*Delivery:* ${formatPrice(deliveryFee)}%0A*TOTAL:* ${formatPrice(grandTotal)}%0A%0A_Please confirm availability._`;
+    const message = `*NEW ORDER - ZUMA HEARTH*%0A%0A*Customer:* ${data.name}%0A*Phone:* ${data.phone}%0A*Address:* ${data.address}%0A*Type:* ${data.type.toUpperCase()}%0A%0A*Order:*%0A${orderDetailsStr}%0A%0A*Subtotal:* ${formatPrice(total)}%0A*Delivery:* ${formatPrice(deliveryFee)}%0A*TOTAL:* ${formatPrice(grandTotal)}%0A%0A_Please confirm availability._`;
     const url = `https://wa.me/2348129382695?text=${message}`;
 
     try {
@@ -116,8 +116,6 @@ export default function App() {
         })),
         total: grandTotal,
         status: 'pending',
-        paymentStatus: paymentReference ? 'paid' : 'pending',
-        paymentReference: paymentReference || null,
         createdAt: serverTimestamp()
       };
 
