@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, Github, Chrome, LogIn } from 'lucide-react';
+import { X, Mail, Lock, User, Chrome, LogIn } from 'lucide-react';
 import { signInWithGoogle, auth } from '../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
@@ -29,19 +29,35 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
         await updateProfile(userCredential.user, { displayName: name });
       }
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const error = err as { code?: string, message?: string };
+      if (error.code === 'auth/operation-not-allowed') {
+        setError('Email/Password authentication is not enabled in your Firebase project. Please enable it in the Firebase Console or use Google Login.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('An account with this email already exists. Please sign in instead.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters.');
+      } else if (err.code === 'auth/invalid-credential') {
+        setError('Invalid email or password.');
+      } else {
+        setError(err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleGoogleSignIn = async () => {
+    setLoading(true);
+    setError('');
     try {
       await signInWithGoogle();
       onClose();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const error = err as { message?: string };
+      setError(error.message || 'An unknown error occurred');
+    } finally {
+      setLoading(false);
     }
   };
 

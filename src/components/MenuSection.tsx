@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Search, Filter, ArrowRight } from 'lucide-react';
+import { Search, ArrowRight } from 'lucide-react';
 import { Category, MenuItem } from '../types';
 import { MENU_ITEMS } from '../data/menu';
 import MenuItemCard from './MenuItemCard';
@@ -25,26 +25,26 @@ export default function MenuSection({ onAddToCart }: MenuSectionProps) {
 
   return (
     <section id="menu" className="section-padding scroll-mt-20">
-      <div className="text-center mb-16">
+      <div className="text-center mb-10 md:mb-16">
         <motion.span
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
-          className="text-brand-secondary font-medium tracking-[0.3em] uppercase text-xs mb-4 block"
+          className="text-brand-secondary font-medium tracking-[0.3em] uppercase text-[10px] md:text-xs mb-3 md:mb-4 block"
         >
           Our Offerings
         </motion.span>
-        <h2 className="text-4xl md:text-6xl font-serif mb-6">Culinary Masterpieces</h2>
-        <div className="w-24 h-1 bg-brand-accent mx-auto" />
+        <h2 className="text-3xl md:text-6xl font-serif mb-4 md:mb-6 leading-tight">Culinary Masterpieces</h2>
+        <div className="w-16 md:w-24 h-1 bg-brand-accent mx-auto" />
       </div>
 
       {/* Filters Toolbar */}
-      <div className="flex flex-col lg:flex-row gap-6 items-center justify-between mb-12 sticky top-20 z-30 py-4 bg-brand-background/80 backdrop-blur-md px-4 rounded-xl shadow-sm border border-brand-primary/5">
-        <div className="flex flex-wrap justify-center gap-2">
+      <div className="flex flex-col lg:flex-row gap-6 items-center justify-between mb-12 sticky top-[60px] md:top-[72px] z-30 py-4 bg-brand-background/90 backdrop-blur-md px-4 rounded-xl shadow-sm border border-brand-primary/5 mx-2 md:mx-0">
+        <div className="flex w-full overflow-x-auto no-scrollbar lg:flex-wrap justify-start lg:justify-center gap-2 pb-2 lg:pb-0">
           <button
             onClick={() => setActiveCategory('All')}
             className={cn(
-              "px-5 py-2 text-xs font-bold uppercase tracking-widest transition-all rounded-full",
-              activeCategory === 'All' ? "bg-brand-primary text-white" : "border border-gray-200 hover:border-brand-primary"
+              "px-5 py-2 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all rounded-full whitespace-nowrap",
+              activeCategory === 'All' ? "bg-brand-primary text-white" : "bg-white border border-gray-200 hover:border-brand-primary"
             )}
           >
             All
@@ -54,8 +54,8 @@ export default function MenuSection({ onAddToCart }: MenuSectionProps) {
               key={cat}
               onClick={() => setActiveCategory(cat)}
               className={cn(
-                "px-5 py-2 text-xs font-bold uppercase tracking-widest transition-all rounded-full",
-                activeCategory === cat ? "bg-brand-primary text-white" : "border border-gray-200 hover:border-brand-primary"
+                "px-5 py-2 text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all rounded-full whitespace-nowrap",
+                activeCategory === cat ? "bg-brand-primary text-white" : "bg-white border border-gray-200 hover:border-brand-primary"
               )}
             >
               {cat}

@@ -21,4 +21,24 @@ export interface CheckoutData {
   address: string;
   notes: string;
   type: 'delivery' | 'pickup';
+  paymentMethod: 'online' | 'on-delivery';
+}
+
+export type OrderStatus = 'pending' | 'confirmed' | 'delivering' | 'completed' | 'cancelled';
+
+export interface Order extends CheckoutData {
+  id: string;
+  userId: string | null;
+  items: {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    category: string;
+  }[];
+  total: number;
+  status: OrderStatus;
+  paymentStatus: 'pending' | 'paid' | 'failed';
+  paymentReference?: string;
+  createdAt: { toDate: () => Date } | null;
 }

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, Clock, MapPin, Phone, ShoppingBag, ArrowRight, MessageCircle } from 'lucide-react';
+import { CheckCircle, Clock, MapPin, MessageCircle } from 'lucide-react';
 import { CartItem, CheckoutData } from '../types';
 import { formatPrice } from '../lib/utils';
 

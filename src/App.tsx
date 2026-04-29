@@ -5,43 +5,60 @@ import MenuSection from './components/MenuSection';
 import CartSidebar from './components/CartSidebar';
 import CheckoutModal from './components/CheckoutModal';
 import OrderSuccessModal from './components/OrderSuccessModal';
+import OrderTracking from './components/OrderTracking';
+import ReservationSection from './components/ReservationSection';
 import AuthModal from './components/AuthModal';
 import Footer from './components/Footer';
 import WhatsAppButton from './components/WhatsAppButton';
 import { MenuItem, CartItem, CheckoutData } from './types';
 import { db, auth, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, setDoc, serverTimestamp, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp, collection, addDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { formatPrice } from './lib/utils';
-import { motion, AnimatePresence } from 'motion/react';
-import { CheckCircle, ArrowRight } from 'lucide-react';
+import { motion } from 'motion/react';
 
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isTrackingOpen, setIsTrackingOpen] = useState(false);
   const [isOrderComplete, setIsOrderComplete] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastOrderDetails, setLastOrderDetails] = useState<{data: CheckoutData, items: CartItem[]} | null>(null);
   const [whatsappUrl, setWhatsappUrl] = useState('');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Sync user profile with Firestore
-        const userRef = doc(db, 'users', user.uid);
-        try {
+    const syncUserProfile = async (u: { uid: string, email: string | null, displayName: string | null }) => {
+      const userRef = doc(db, 'users', u.uid);
+      try {
+        const userSnap = await getDoc(userRef);
+        const userData = {
+          uid: u.uid,
+          email: u.email,
+          displayName: u.displayName || null,
+          updatedAt: serverTimestamp(),
+        };
+
+        if (!userSnap.exists()) {
           await setDoc(userRef, {
-            uid: user.uid,
-            email: user.email,
-            displayName: user.displayName,
+            ...userData,
             createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-          }, { merge: true });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `users/${user.uid}`);
+          });
+        } else {
+          await updateDoc(userRef, userData);
         }
+      } catch (error) {
+        console.warn('Profile sync note:', error);
+      }
+    };
+
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      if (u) {
+        syncUserProfile(u);
+      } else {
+        // Clear tracking if user logs out
+        setIsTrackingOpen(false);
       }
     });
 
@@ -73,7 +90,7 @@ export default function App() {
     setCart(prev => prev.filter(i => i.id !== id));
   }, []);
 
-  const handleCheckout = async (data: CheckoutData) => {
+  const handleCheckout = async (data: CheckoutData, paymentReference?: string) => {
     setIsProcessing(true);
     
     // Construct WhatsApp Message
@@ -82,7 +99,7 @@ export default function App() {
     const grandTotal = total + deliveryFee;
 
     const orderDetailsStr = cart.map(item => `• ${item.quantity}x ${item.name} (${formatPrice(item.price * item.quantity)})`).join('%0A');
-    const message = `*NEW ORDER - ZUMA HEARTH*%0A%0A*Customer:* ${data.name}%0A*Phone:* ${data.phone}%0A*Address:* ${data.address}%0A*Type:* ${data.type.toUpperCase()}%0A%0A*Order:*%0A${orderDetailsStr}%0A%0A*Subtotal:* ${formatPrice(total)}%0A*Delivery:* ${formatPrice(deliveryFee)}%0A*TOTAL:* ${formatPrice(grandTotal)}%0A%0A_Please confirm availability._`;
+    const message = `*NEW ORDER - ZUMA HEARTH*%0A%0A*Customer:* ${data.name}%0A*Phone:* ${data.phone}%0A*Address:* ${data.address}%0A*Type:* ${data.type.toUpperCase()}%0A*Payment:* ${data.paymentMethod.toUpperCase()}${paymentReference ? ` (Paid: ${paymentReference})` : ''}%0A%0A*Order:*%0A${orderDetailsStr}%0A%0A*Subtotal:* ${formatPrice(total)}%0A*Delivery:* ${formatPrice(deliveryFee)}%0A*TOTAL:* ${formatPrice(grandTotal)}%0A%0A_Please confirm availability._`;
     const url = `https://wa.me/2348129382695?text=${message}`;
 
     try {
@@ -99,6 +116,8 @@ export default function App() {
         })),
         total: grandTotal,
         status: 'pending',
+        paymentStatus: paymentReference ? 'paid' : 'pending',
+        paymentReference: paymentReference || null,
         createdAt: serverTimestamp()
       };
 
@@ -117,8 +136,17 @@ export default function App() {
   };
 
   const scrollToSection = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth' });
+    if (isTrackingOpen) {
+      setIsTrackingOpen(false);
+      // Give it a tiny bit to re-render the home page before scrolling
+      setTimeout(() => {
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   return (
@@ -128,89 +156,98 @@ export default function App() {
         onOpenCart={() => setIsCartOpen(true)}
         onScrollTo={scrollToSection}
         onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenOrders={() => setIsTrackingOpen(true)}
       />
       
-      <main>
-        <Hero onExplore={() => scrollToSection('menu')} />
-        
-        {/* About Section Teaser */}
-        <section id="about" className="section-padding grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <motion.div
-            initial={{ opacity: 0, x: -50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
-            className="relative"
-          >
-            <div className="aspect-[4/5] overflow-hidden rounded-none shadow-2xl relative">
-              <img 
-                src="https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&q=80&w=1548" 
-                alt="Chef in Action" 
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 border-[1.5rem] border-brand-background/30 m-6" />
-            </div>
-            <div className="absolute -bottom-8 -right-8 w-64 h-64 bg-brand-accent p-8 flex flex-col justify-end hidden md:flex">
-              <span className="text-brand-dark/30 text-8xl font-serif absolute top-2 right-4 leading-none">"</span>
-              <p className="text-brand-dark text-lg font-serif italic mb-4 leading-relaxed">
-                Flavor is the memory of the earth.
-              </p>
-              <p className="text-xs uppercase font-bold tracking-widest text-brand-dark/60">Chef Ope — Executive Chef</p>
-            </div>
-          </motion.div>
+      <main className="pt-20">
+        {isTrackingOpen ? (
+          <OrderTracking onBack={() => setIsTrackingOpen(false)} />
+        ) : (
+          <>
+            <Hero onExplore={() => scrollToSection('menu')} />
+            
+            {/* About Section Teaser */}
+            <section id="about" className="section-padding grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1] }}
+                className="relative px-4 sm:px-0"
+              >
+                <div className="aspect-[4/5] overflow-hidden rounded-none shadow-2xl relative">
+                  <img 
+                    src="https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&q=80&w=1548" 
+                    alt="Chef in Action" 
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 border-[0.75rem] md:border-[1.5rem] border-brand-background/30 m-3 md:m-6" />
+                </div>
+                <div className="absolute -bottom-8 -right-8 w-64 h-64 bg-brand-accent p-8 flex flex-col justify-end hidden md:flex">
+                  <span className="text-brand-dark/30 text-8xl font-serif absolute top-2 right-4 leading-none">"</span>
+                  <p className="text-brand-dark text-lg font-serif italic mb-4 leading-relaxed">
+                    Flavor is the memory of the earth.
+                  </p>
+                  <p className="text-xs uppercase font-bold tracking-widest text-brand-dark/60">Chef Ope — Executive Chef</p>
+                </div>
+              </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
-            className="space-y-8"
-          >
-            <span className="text-brand-secondary font-medium tracking-[0.3em] uppercase text-xs">Our Story</span>
-            <h2 className="text-4xl md:text-5xl font-serif leading-tight">Mastering the Art of <br/> Nigerian Fusion</h2>
-            <p className="text-gray-600 leading-relaxed font-light text-lg">
-              Born from a passion for the rich culinary landscape of Nigeria, Zuma Hearth reimagines heritage ingredients through international techniques. Our kitchen is a laboratory of taste, where Jollof becomes an infusion and Suya is elevated to fine-dining sculpture.
-            </p>
-            <div className="grid grid-cols-2 gap-8 pt-8">
-              <div>
-                <h4 className="text-4xl font-serif text-brand-primary mb-2">12+</h4>
-                <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Hours slow-cooking our signatures</p>
+              <motion.div
+                initial={{ opacity: 0, x: 50 }}
+                whileInView={{ opacity: 1, x: 0 }}
+                transition={{ duration: 1.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+                className="space-y-6 md:space-y-8"
+              >
+                <span className="text-brand-secondary font-medium tracking-[0.3em] uppercase text-[10px] md:text-xs">Our Story</span>
+                <h2 className="text-3xl sm:text-4xl md:text-5xl font-serif leading-tight">Mastering the Art of <br/> Nigerian Fusion</h2>
+                <p className="text-gray-600 leading-relaxed font-light text-base md:text-lg">
+                  Born from a passion for the rich culinary landscape of Nigeria, Zuma Hearth reimagines heritage ingredients through international techniques. Our kitchen is a laboratory of taste, where Jollof becomes an infusion and Suya is elevated to fine-dining sculpture.
+                </p>
+                <div className="grid grid-cols-2 gap-4 md:gap-8 pt-4 md:pt-8">
+                  <div>
+                    <h4 className="text-3xl md:text-4xl font-serif text-brand-primary mb-1 md:mb-2">12+</h4>
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Hours slow-cooking our signatures</p>
+                  </div>
+                  <div>
+                    <h4 className="text-3xl md:text-4xl font-serif text-brand-primary mb-1 md:mb-2">100%</h4>
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Ethically sourced local ingredients</p>
+                  </div>
+                </div>
+              </motion.div>
+            </section>
+
+            <MenuSection onAddToCart={addToCart} />
+
+            <ReservationSection />
+
+            {/* Testimonials */}
+            <section className="bg-brand-dark text-white py-16 md:py-24">
+              <div className="section-padding space-y-12 md:space-y-16">
+                <div className="text-center">
+                  <span className="text-brand-accent tracking-[0.3em] font-medium uppercase text-[10px] md:text-xs mb-3 md:mb-4 block">The Experience</span>
+                  <h2 className="text-3xl md:text-5xl font-serif">Guest Reflections</h2>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-12">
+                  {[
+                    { name: 'Amaka O.', text: 'The Seafood Okra is a spiritual experience. The freshness of the seafood is unparalleled in Abuja.' },
+                    { name: 'David W.', text: 'Incredibly sophisticated atmosphere. The Zobo cocktail is a revelation - perfectly balanced.' },
+                    { name: 'Dr. Bello', text: 'Zuma Hearth has set a new global standard for Nigerian cuisine. A masterpiece of fusion.' }
+                  ].map((t, index) => (
+                    <motion.div 
+                      key={index}
+                      initial={{ opacity: 0, y: 30 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.2, duration: 1.2, ease: "easeOut" }}
+                      className="bg-white/5 p-8 md:p-12 border border-white/10 relative"
+                    >
+                      <p className="text-base md:text-lg italic text-white/80 leading-relaxed mb-6 md:mb-8">"{t.text}"</p>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent">{t.name}</p>
+                    </motion.div>
+                  ))}
+                </div>
               </div>
-              <div>
-                <h4 className="text-4xl font-serif text-brand-primary mb-2">100%</h4>
-                <p className="text-[10px] uppercase font-bold tracking-widest text-gray-400">Ethically sourced local ingredients</p>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-
-        <MenuSection onAddToCart={addToCart} />
-
-        {/* Testimonials */}
-        <section className="bg-brand-dark text-white py-24">
-          <div className="section-padding space-y-16">
-            <div className="text-center">
-              <span className="text-brand-accent tracking-[0.3em] font-medium uppercase text-xs mb-4 block">The Experience</span>
-              <h2 className="text-4xl md:text-5xl font-serif">Guest Reflections</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-              {[
-                { name: 'Amaka O.', text: 'The Seafood Okra is a spiritual experience. The freshness of the seafood is unparalleled in Abuja.' },
-                { name: 'David W.', text: 'Incredibly sophisticated atmosphere. The Zobo cocktail is a revelation - perfectly balanced.' },
-                { name: 'Dr. Bello', text: 'Zuma Hearth has set a new global standard for Nigerian cuisine. A masterpiece of fusion.' }
-              ].map((t, index) => (
-                <motion.div 
-                  key={index}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.4, duration: 1.2, ease: "easeOut" }}
-                  className="bg-white/5 p-12 border border-white/10 relative"
-                >
-                  <p className="text-lg italic text-white/80 leading-relaxed mb-8">"{t.text}"</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-brand-accent">{t.name}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
+            </section>
+          </>
+        )}
       </main>
 
       <Footer />
@@ -227,13 +264,16 @@ export default function App() {
         }}
       />
 
-      <CheckoutModal 
-        isOpen={isCheckoutOpen}
-        onClose={() => setIsCheckoutOpen(false)}
-        cartItems={cart}
-        onSubmit={handleCheckout}
-        isProcessing={isProcessing}
-      />
+      {isCheckoutOpen && (
+        <CheckoutModal 
+          key="checkout-modal"
+          isOpen={isCheckoutOpen}
+          onClose={() => setIsCheckoutOpen(false)}
+          cartItems={cart}
+          onSubmit={handleCheckout}
+          isProcessing={isProcessing}
+        />
+      )}
 
       <AuthModal 
         isOpen={isAuthOpen}
