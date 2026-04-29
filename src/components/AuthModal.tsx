@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Mail, Lock, User, Chrome, LogIn } from 'lucide-react';
+import { X, Mail, Lock, User, Chrome, LogIn, Eye, EyeOff } from 'lucide-react';
 import { signInWithGoogle, auth } from '../lib/firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
@@ -13,6 +13,7 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -119,6 +120,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                       <User className="absolute left-0 top-1/2 -translate-y-1/2 text-brand-primary" size={16} />
                       <input
                         type="text"
+                        name="name"
+                        autoComplete="name"
                         required
                         className="w-full border-b border-gray-200 py-2 pl-7 focus:outline-none focus:border-brand-primary transition-colors text-sm"
                         placeholder="Zuma Guest"
@@ -135,6 +138,8 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                     <Mail className="absolute left-0 top-1/2 -translate-y-1/2 text-brand-primary" size={16} />
                     <input
                       type="email"
+                      name="email"
+                      autoComplete="email"
                       required
                       className="w-full border-b border-gray-200 py-2 pl-7 focus:outline-none focus:border-brand-primary transition-colors text-sm"
                       placeholder="hello@example.com"
@@ -149,13 +154,23 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
                   <div className="relative">
                     <Lock className="absolute left-0 top-1/2 -translate-y-1/2 text-brand-primary" size={16} />
                     <input
-                      type="password"
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      autoComplete={isLogin ? 'current-password' : 'new-password'}
                       required
-                      className="w-full border-b border-gray-200 py-2 pl-7 focus:outline-none focus:border-brand-primary transition-colors text-sm"
+                      className="w-full border-b border-gray-200 py-2 pl-7 pr-10 focus:outline-none focus:border-brand-primary transition-colors text-sm"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                     />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-0 top-1/2 -translate-y-1/2 text-gray-400 hover:text-brand-primary transition-colors p-1"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
                   </div>
                 </div>
 
