@@ -13,9 +13,10 @@ import WhatsAppButton from './components/WhatsAppButton';
 import { MenuItem, CartItem, CheckoutData } from './types';
 import { db, auth, handleFirestoreError, OperationType } from './lib/firebase';
 import { doc, setDoc, serverTimestamp, collection, addDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
 import { formatPrice } from './lib/utils';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { AlertCircle, Send } from 'lucide-react';
 
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -27,6 +28,29 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastOrderDetails, setLastOrderDetails] = useState<{data: CheckoutData, items: CartItem[]} | null>(null);
   const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [isEmailVerificationSent, setIsEmailVerificationSent] = useState(false);
+
+  const user = auth.currentUser;
+
+  const handleResendVerification = async () => {
+    if (user) {
+      try {
+        await sendEmailVerification(user);
+        setIsEmailVerificationSent(true);
+        setTimeout(() => setIsEmailVerificationSent(false), 5000);
+      } catch (error) {
+        console.error('Error resending verification:', error);
+      }
+    }
+  };
+
+  const handleRefreshAuth = async () => {
+    if (user) {
+      await user.reload();
+      // Force a re-render by creating a slight delay or just trusting the state will update
+      window.location.reload();
+    }
+  };
 
   useEffect(() => {
     const syncUserProfile = async (u: { uid: string, email: string | null, displayName: string | null }) => {
@@ -156,6 +180,40 @@ export default function App() {
         onOpenAuth={() => setIsAuthOpen(true)}
         onOpenOrders={() => setIsTrackingOpen(true)}
       />
+
+      <AnimatePresence>
+        {auth.currentUser && !auth.currentUser.emailVerified && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="fixed top-20 left-0 right-0 z-[90] bg-brand-secondary text-white py-2 px-4 shadow-lg overflow-hidden"
+          >
+            <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+              <div className="flex items-center gap-2 text-[10px] sm:text-xs font-bold uppercase tracking-widest">
+                <AlertCircle size={14} className="text-brand-accent shrink-0" />
+                <span>Your email is not verified. Please check your inbox to access full features.</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleRefreshAuth}
+                  className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest bg-white text-brand-secondary hover:bg-brand-accent transition-colors px-3 py-1 rounded-none"
+                >
+                  Confirm Verified
+                </button>
+                <button
+                  onClick={handleResendVerification}
+                  disabled={isEmailVerificationSent}
+                  className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest bg-white/10 hover:bg-white/20 transition-colors px-3 py-1 rounded-none disabled:opacity-50"
+                >
+                  {isEmailVerificationSent ? 'Verification Sent' : 'Resend Email'}
+                  {!isEmailVerificationSent && <Send size={12} />}
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
       <main className="pt-20">
         {isTrackingOpen ? (

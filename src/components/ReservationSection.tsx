@@ -3,11 +3,14 @@ import { motion } from 'motion/react';
 import { Calendar, Users, Clock, Phone, Mail, User, ChevronRight } from 'lucide-react';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { AlertCircle } from 'lucide-react';
 
 export default function ReservationSection() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isVerified = auth.currentUser?.emailVerified;
+
   const [formData, setFormData] = useState({
     name: auth.currentUser?.displayName || '',
     email: auth.currentUser?.email || '',
@@ -20,6 +23,14 @@ export default function ReservationSection() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!auth.currentUser) {
+      setErrorMessage('Please sign in to make a reservation.');
+      return;
+    }
+    if (!auth.currentUser.emailVerified) {
+      setErrorMessage('Please verify your email before making a reservation. Check the notification banner at the top.');
+      return;
+    }
     setIsSubmitting(true);
     setErrorMessage(null);
 
@@ -130,8 +141,16 @@ export default function ReservationSection() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
               {errorMessage && (
-                <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-xs font-medium">
-                  {errorMessage}
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                  <AlertCircle size={14} />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+              
+              {auth.currentUser && !isVerified && (
+                <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-700 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                  <AlertCircle size={14} />
+                  <span>Please verify your email to book a table</span>
                 </div>
               )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -243,8 +262,8 @@ export default function ReservationSection() {
 
               <button 
                 type="submit" 
-                disabled={isSubmitting}
-                className="w-full btn-premium py-4 flex items-center justify-center gap-3"
+                disabled={isSubmitting || (!!auth.currentUser && !isVerified)}
+                className="w-full btn-premium py-4 flex items-center justify-center gap-3 disabled:bg-gray-200 disabled:text-gray-400"
               >
                 {isSubmitting ? 'Confirming Availability...' : (
                   <>

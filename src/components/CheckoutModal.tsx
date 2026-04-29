@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Truck, Package, MapPin, CreditCard, ChevronRight, Mail, User } from 'lucide-react';
+import { X, Truck, Package, MapPin, CreditCard, ChevronRight, Mail, User, AlertCircle } from 'lucide-react';
 import { CartItem, CheckoutData } from '../types';
 import { formatPrice } from '../lib/utils';
 import { auth } from '../lib/firebase';
@@ -33,8 +33,11 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
   const handleBack = () => setStep(s => s - 1);
 
   const handlePlaceOrder = () => {
+    if (!auth.currentUser?.emailVerified) return;
     onSubmit(formData);
   };
+
+  const isVerified = auth.currentUser?.emailVerified;
 
   if (!isOpen) return null;
 
@@ -232,6 +235,19 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
                       Payment will be made on {formData.type} via POS or Cash.
                     </span>
                   </div>
+
+                  {!isVerified && (
+                    <div className="p-4 bg-amber-50 border-l-4 border-amber-500 flex items-start gap-3">
+                      <AlertCircle className="text-amber-500 shrink-0" size={18} />
+                      <div>
+                        <p className="text-xs font-bold text-amber-900 uppercase tracking-widest mb-1">Verification Required</p>
+                        <p className="text-[10px] text-amber-800 leading-relaxed">
+                          Your email is not verified. Please check your inbox for the verification link before you can place an order.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-8 pt-4">
                     <div>
                       <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-gray-400 mb-2">Guest</h5>
@@ -253,7 +269,7 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
                   </button>
                   <button 
                     onClick={handlePlaceOrder}
-                    disabled={isProcessing}
+                    disabled={isProcessing || !isVerified}
                     className="btn-premium px-12 py-4 bg-brand-dark text-brand-accent hover:bg-brand-primary hover:text-white disabled:bg-gray-400 disabled:text-gray-200"
                   >
                     {isProcessing ? (

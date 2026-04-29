@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, Chrome, LogIn, Eye, EyeOff } from 'lucide-react';
 import { signInWithGoogle, auth } from '../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -16,20 +16,26 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setLoading(true);
     try {
       if (isLogin) {
         await signInWithEmailAndPassword(auth, email, password);
+        onClose();
       } else {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName: name });
+        await sendEmailVerification(userCredential.user);
+        setSuccess('Account created! A verification email has been sent to your inbox. Please verify your email before placing orders.');
+        // Don't close immediately on sign up so they can see the success message
+        setIsLogin(true);
       }
-      onClose();
     } catch (err: unknown) {
       const error = err as { code?: string; message?: string };
       if (error.code === 'auth/operation-not-allowed') {
@@ -109,6 +115,12 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
               {error && (
                 <div className="mb-6 p-4 bg-red-50 text-red-600 text-xs font-medium border-l-4 border-red-500">
                   {error}
+                </div>
+              )}
+
+              {success && (
+                <div className="mb-6 p-4 bg-green-50 text-green-600 text-xs font-medium border-l-4 border-green-500">
+                  {success}
                 </div>
               )}
 

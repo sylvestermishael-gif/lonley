@@ -71,7 +71,7 @@ service cloud.firestore {
     }
 
     match /orders/{orderId} {
-      allow create: if isValidOrder(incoming())
+      allow create: if isEmailVerified() && isValidOrder(incoming())
         && (incoming().userId == null || isOwner(incoming().userId));
       
       allow get: if isSignedIn() && (
@@ -80,7 +80,7 @@ service cloud.firestore {
       
       allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
       
-      allow update: if isSignedIn() && isValidOrder(incoming()) && (
+      allow update: if isEmailVerified() && isValidOrder(incoming()) && (
         // Only allow status updates or certain fields if owner
         isOwner(existing().userId) && (
           incoming().diff(existing()).affectedKeys().hasOnly(['status']) || 
@@ -105,7 +105,7 @@ service cloud.firestore {
     }
 
     match /reservations/{reservationId} {
-      allow create: if isValidReservation(incoming())
+      allow create: if isEmailVerified() && isValidReservation(incoming())
         && (incoming().userId == null || isOwner(incoming().userId));
       
       allow get, list: if isSignedIn() && (
