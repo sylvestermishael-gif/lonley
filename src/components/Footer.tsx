@@ -47,18 +47,17 @@ export default function Footer() {
           <h4 className="text-[10px] font-bold uppercase tracking-[0.4em] text-brand-accent mb-8 block">Hours of Operation</h4>
           <div className="space-y-4 text-sm font-light">
             <div className="flex justify-between border-b border-white/5 pb-2">
-              <span className="text-white/50 lowercase italic">Tue - Thu</span>
+              <span className="text-white/50 lowercase italic">Mon - Fri</span>
               <span>12:00 PM - 10:00 PM</span>
             </div>
             <div className="flex justify-between border-b border-white/5 pb-2">
-              <span className="text-white/50 lowercase italic">Fri - Sat</span>
-              <span>12:00 PM - 12:00 AM</span>
+              <span className="text-white/50 lowercase italic">Saturday</span>
+              <span>12:00 PM - 11:00 PM</span>
             </div>
             <div className="flex justify-between border-b border-white/5 pb-2">
               <span className="text-white/50 lowercase italic">Sunday</span>
               <span>10:00 AM - 9:00 PM</span>
             </div>
-            <div className="text-[10px] text-brand-secondary uppercase tracking-widest italic pt-2">Closed on Mondays</div>
           </div>
         </div>
 

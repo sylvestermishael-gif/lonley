@@ -78,8 +78,8 @@ export default function ReservationSection() {
               </div>
               <div>
                 <h4 className="font-bold uppercase tracking-widest text-xs mb-1">Operating Hours</h4>
-                <p className="text-sm text-gray-500">Tue – Sun: 12:00 PM – 11:00 PM</p>
-                <p className="text-sm text-gray-500 italic mt-1 text-brand-secondary">Closed on Mondays</p>
+                <p className="text-sm text-gray-500">Mon – Fri: 12:00 PM – 10:00 PM</p>
+                <p className="text-sm text-gray-500">Sat – Sun: 10:00 AM – 11:00 PM</p>
               </div>
             </div>
 
