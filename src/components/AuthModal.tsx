@@ -30,17 +30,19 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       }
       onClose();
     } catch (err: unknown) {
-      const error = err as { code?: string, message?: string };
+      const error = err as { code?: string; message?: string };
       if (error.code === 'auth/operation-not-allowed') {
         setError('Email/Password authentication is not enabled in your Firebase project. Please enable it in the Firebase Console or use Google Login.');
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (error.code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized for Firebase Authentication. Please add your current URL to the "Authorized Domains" list in the Firebase Console.');
+      } else if (error.code === 'auth/email-already-in-use') {
         setError('An account with this email already exists. Please sign in instead.');
-      } else if (err.code === 'auth/weak-password') {
+      } else if (error.code === 'auth/weak-password') {
         setError('Password should be at least 6 characters.');
-      } else if (err.code === 'auth/invalid-credential') {
+      } else if (error.code === 'auth/invalid-credential') {
         setError('Invalid email or password.');
       } else {
-        setError(err.message);
+        setError(error.message || 'An authentication error occurred.');
       }
     } finally {
       setLoading(false);
@@ -54,8 +56,15 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
       await signInWithGoogle();
       onClose();
     } catch (err: unknown) {
-      const error = err as { message?: string };
-      setError(error.message || 'An unknown error occurred');
+      console.error('Google Auth Error:', err);
+      const error = err as { code?: string; message?: string };
+      if (error.code === 'auth/unauthorized-domain') {
+        setError('This domain is not authorized for Google Sign-In. Add it to "Authorized Domains" in the Firebase Console.');
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        setError('The sign-in popup was closed before completion.');
+      } else {
+        setError(error.message || 'An error occurred during Google Sign-In.');
+      }
     } finally {
       setLoading(false);
     }

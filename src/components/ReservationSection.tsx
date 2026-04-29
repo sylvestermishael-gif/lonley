@@ -7,6 +7,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 export default function ReservationSection() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: auth.currentUser?.displayName || '',
     email: auth.currentUser?.email || '',
@@ -20,6 +21,7 @@ export default function ReservationSection() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setErrorMessage(null);
 
     try {
       await addDoc(collection(db, 'reservations'), {
@@ -38,8 +40,11 @@ export default function ReservationSection() {
         time: '19:00',
         notes: ''
       });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'reservations');
+    } catch (err: unknown) {
+      console.error('Reservation Error:', err);
+      const error = err as { message?: string };
+      setErrorMessage(error.message || 'Failed to submit reservation. Please try again.');
+      handleFirestoreError(err, OperationType.CREATE, 'reservations');
     } finally {
       setIsSubmitting(false);
     }
@@ -113,7 +118,10 @@ export default function ReservationSection() {
                 </p>
               </div>
               <button 
-                onClick={() => setIsSuccess(false)}
+                onClick={() => {
+                  setIsSuccess(false);
+                  setErrorMessage(null);
+                }}
                 className="btn-premium px-8"
               >
                 Book Another Table
@@ -121,6 +129,11 @@ export default function ReservationSection() {
             </motion.div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-6">
+              {errorMessage && (
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 text-red-700 text-xs font-medium">
+                  {errorMessage}
+                </div>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold uppercase tracking-widest text-gray-400">FullName</label>
