@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Mail, Lock, User, Chrome, LogIn, Eye, EyeOff } from 'lucide-react';
-import { signInWithGoogle, auth } from '../lib/firebase';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendEmailVerification } from 'firebase/auth';
+import { signInWithGoogle, supabase } from '../lib/supabase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -26,31 +25,32 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setLoading(true);
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (signInError) throw signInError;
         onClose();
       } else {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await updateProfile(userCredential.user, { displayName: name });
-        await sendEmailVerification(userCredential.user);
-        setSuccess('Account created! A verification email has been sent to your inbox. Please verify your email before placing orders.');
-        // Don't close immediately on sign up so they can see the success message
-        setIsLogin(true);
+        const { error: signUpError } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: name,
+            },
+          },
+        });
+        if (signUpError) throw signUpError;
+        setSuccess('Account created! Please check your inbox for a verification email.');
+        setTimeout(() => {
+          setIsLogin(true);
+        }, 5000);
       }
     } catch (err: unknown) {
-      const error = err as { code?: string; message?: string };
-      if (error.code === 'auth/operation-not-allowed') {
-        setError('Email/Password authentication is not enabled in your Firebase project. Please enable it in the Firebase Console or use Google Login.');
-      } else if (error.code === 'auth/unauthorized-domain') {
-        setError('This domain is not authorized for Firebase Authentication. Please add your current URL to the "Authorized Domains" list in the Firebase Console.');
-      } else if (error.code === 'auth/email-already-in-use') {
-        setError('An account with this email already exists. Please sign in instead.');
-      } else if (error.code === 'auth/weak-password') {
-        setError('Password should be at least 6 characters.');
-      } else if (error.code === 'auth/invalid-credential') {
-        setError('Invalid email or password.');
-      } else {
-        setError(error.message || 'An authentication error occurred.');
-      }
+      console.error('Auth error:', err);
+      const error = err as { message?: string };
+      setError(error.message || 'An authentication error occurred.');
     } finally {
       setLoading(false);
     }
@@ -61,18 +61,11 @@ export default function AuthModal({ isOpen, onClose }: AuthModalProps) {
     setError('');
     try {
       await signInWithGoogle();
-      onClose();
+      // OAuth redirect will happen, so we don't necessarily call onClose() here
     } catch (err: unknown) {
       console.error('Google Auth Error:', err);
-      const error = err as { code?: string; message?: string };
-      if (error.code === 'auth/unauthorized-domain') {
-        setError('This domain is not authorized for Google Sign-In. Add it to "Authorized Domains" in the Firebase Console.');
-      } else if (error.code === 'auth/popup-closed-by-user') {
-        setError('The sign-in popup was closed before completion.');
-      } else {
-        setError(error.message || 'An error occurred during Google Sign-In.');
-      }
-    } finally {
+      const error = err as { message?: string };
+      setError(error.message || 'An error occurred during Google Sign-In.');
       setLoading(false);
     }
   };

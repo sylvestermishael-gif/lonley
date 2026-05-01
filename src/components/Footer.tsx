@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Instagram, Facebook, Twitter, Check, Loader2 } from 'lucide-react';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { supabase, handleSupabaseError, OperationType } from '../lib/supabase';
 
 export default function Footer() {
   const [email, setEmail] = useState('');
@@ -13,18 +12,22 @@ export default function Footer() {
 
     setStatus('loading');
     try {
-      // Use email as doc ID to prevent duplicates if desired, or use addDoc
-      await setDoc(doc(db, 'subscribers', email.toLowerCase().trim()), {
-        email: email.toLowerCase().trim(),
-        createdAt: serverTimestamp()
-      });
+      const { error } = await supabase
+        .from('subscribers')
+        .upsert({
+          email: email.toLowerCase().trim(),
+          created_at: new Date().toISOString()
+        }, { onConflict: 'email' });
+
+      if (error) throw error;
+
       setStatus('success');
       setEmail('');
       setTimeout(() => setStatus('idle'), 5000);
     } catch (error) {
       console.error(error);
       setStatus('error');
-      handleFirestoreError(error, OperationType.WRITE, 'subscribers');
+      handleSupabaseError(error as { message?: string }, OperationType.WRITE, 'subscribers');
     }
   };
 

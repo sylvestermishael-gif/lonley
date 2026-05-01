@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { X, Truck, Package, MapPin, CreditCard, ChevronRight, Mail, User, AlertCircle } from 'lucide-react';
 import { CartItem, CheckoutData } from '../types';
 import { formatPrice } from '../lib/utils';
-import { auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -15,15 +16,29 @@ interface CheckoutModalProps {
 
 export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, isProcessing }: CheckoutModalProps) {
   const [step, setStep] = useState(1);
-  // Initialize form data with user info if available
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
   const [formData, setFormData] = useState<CheckoutData>({
-    name: auth.currentUser?.displayName || '',
+    name: '',
     phone: '',
-    email: auth.currentUser?.email || '',
+    email: '',
     address: '',
     notes: '',
     type: 'delivery'
   });
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+      if (user) {
+        setFormData(prev => ({
+          ...prev,
+          name: user.user_metadata?.full_name || '',
+          email: user.email || ''
+        }));
+      }
+    });
+  }, []);
 
   const total = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const deliveryFee = formData.type === 'delivery' ? 2500 : 0;
@@ -32,12 +47,12 @@ export default function CheckoutModal({ isOpen, onClose, cartItems, onSubmit, is
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
 
+  const isVerified = currentUser?.app_metadata?.provider === 'google' || !!currentUser?.email_confirmed_at;
+
   const handlePlaceOrder = () => {
-    if (!auth.currentUser?.emailVerified) return;
+    if (!isVerified) return;
     onSubmit(formData);
   };
-
-  const isVerified = auth.currentUser?.emailVerified;
 
   if (!isOpen) return null;
 

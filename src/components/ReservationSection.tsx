@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
-import { motion } from 'motion/react';
-import { Calendar, Users, Clock, Phone, Mail, User, ChevronRight } from 'lucide-react';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { AlertCircle } from 'lucide-react';
+import { Calendar, Users, Clock, Phone, Mail, User, ChevronRight, AlertCircle } from 'lucide-react';
+import { supabase, handleSupabaseError, OperationType } from '../lib/supabase';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 export default function ReservationSection() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const isVerified = auth.currentUser?.emailVerified;
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
+
+  const isVerified = currentUser?.app_metadata?.provider === 'google' || !!currentUser?.email_confirmed_at;
 
   const [formData, setFormData] = useState({
-    name: auth.currentUser?.displayName || '',
-    email: auth.currentUser?.email || '',
+    name: '',
+    email: '',
     phone: '',
     guests: '2',
     date: '',
@@ -21,13 +20,41 @@ export default function ReservationSection() {
     notes: ''
   });
 
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+      if (user) {
+        setFormData(prev => ({
+          ...prev,
+          name: user.user_metadata?.full_name || '',
+          email: user.email || ''
+        }));
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null;
+      setCurrentUser(user);
+      if (user) {
+        setFormData(prev => ({
+          ...prev,
+          name: user.user_metadata?.full_name || '',
+          email: user.email || ''
+        }));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!auth.currentUser) {
+    if (!currentUser) {
       setErrorMessage('Please sign in to make a reservation.');
       return;
     }
-    if (!auth.currentUser.emailVerified) {
+    if (!isVerified) {
       setErrorMessage('Please verify your email before making a reservation. Check the notification banner at the top.');
       return;
     }
@@ -35,16 +62,25 @@ export default function ReservationSection() {
     setErrorMessage(null);
 
     try {
-      await addDoc(collection(db, 'reservations'), {
-        ...formData,
-        userId: auth.currentUser?.uid || null,
+      const { error } = await supabase.from('reservations').insert({
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        guests: formData.guests,
+        date: formData.date,
+        time: formData.time,
+        notes: formData.notes,
+        user_id: currentUser.id,
         status: 'pending',
-        createdAt: serverTimestamp()
+        created_at: new Date().toISOString()
       });
+
+      if (error) throw error;
+
       setIsSuccess(true);
       setFormData({
-        name: auth.currentUser?.displayName || '',
-        email: auth.currentUser?.email || '',
+        name: currentUser.user_metadata?.full_name || '',
+        email: currentUser.email || '',
         phone: '',
         guests: '2',
         date: '',
@@ -55,7 +91,7 @@ export default function ReservationSection() {
       console.error('Reservation Error:', err);
       const error = err as { message?: string };
       setErrorMessage(error.message || 'Failed to submit reservation. Please try again.');
-      handleFirestoreError(err, OperationType.CREATE, 'reservations');
+      handleSupabaseError(error, OperationType.CREATE, 'reservations');
     } finally {
       setIsSubmitting(false);
     }
@@ -147,7 +183,7 @@ export default function ReservationSection() {
                 </div>
               )}
               
-              {auth.currentUser && !isVerified && (
+              {currentUser && !isVerified && (
                 <div className="p-4 bg-amber-50 border-l-4 border-amber-500 text-amber-700 text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
                   <AlertCircle size={14} />
                   <span>Please verify your email to book a table</span>
@@ -262,7 +298,7 @@ export default function ReservationSection() {
 
               <button 
                 type="submit" 
-                disabled={isSubmitting || (!!auth.currentUser && !isVerified)}
+                disabled={isSubmitting || (!!currentUser && !isVerified)}
                 className="w-full btn-premium py-4 flex items-center justify-center gap-3 disabled:bg-gray-200 disabled:text-gray-400"
               >
                 {isSubmitting ? 'Confirming Availability...' : (

@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react';
 import { Menu, X, ShoppingCart, User, Phone, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../lib/utils';
-import { auth, logout } from '../lib/firebase';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { logout, supabase } from '../lib/supabase';
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface NavbarProps {
   cartCount: number;
@@ -16,7 +15,7 @@ interface NavbarProps {
 export default function Navbar({ cartCount, onOpenCart, onScrollTo, onOpenAuth, onOpenOrders }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [user, setUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -24,13 +23,17 @@ export default function Navbar({ cartCount, onOpenCart, onScrollTo, onOpenAuth, 
     };
     window.addEventListener('scroll', handleScroll);
     
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
     });
 
     return () => {
       window.removeEventListener('scroll', handleScroll);
-      unsubscribe();
+      subscription.unsubscribe();
     };
   }, []);
 
@@ -109,7 +112,7 @@ export default function Navbar({ cartCount, onOpenCart, onScrollTo, onOpenAuth, 
           <div className="flex items-center gap-4">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-[10px] font-bold uppercase tracking-widest text-brand-secondary">Welcome</span>
-              <span className="text-xs font-medium truncate max-w-[100px]">{user.displayName || user.email}</span>
+              <span className="text-xs font-medium truncate max-w-[100px]">{user.user_metadata?.full_name || user.email}</span>
             </div>
             <button 
               onClick={() => logout()}
@@ -198,7 +201,7 @@ export default function Navbar({ cartCount, onOpenCart, onScrollTo, onOpenAuth, 
                 <div className="flex items-center justify-between mt-4">
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Signed in as</span>
-                    <span className="text-sm font-bold">{user.displayName || user.email}</span>
+                    <span className="text-sm font-bold">{user.user_metadata?.full_name || user.email}</span>
                   </div>
                   <button 
                     onClick={() => { logout(); setIsOpen(false); }}

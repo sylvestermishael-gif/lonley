@@ -7,6 +7,7 @@ import { formatPrice } from '../lib/utils';
 interface OrderSuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onTrackInApp: () => void;
   orderData: CheckoutData | null;
   items: CartItem[];
   whatsappUrl: string;
@@ -15,6 +16,7 @@ interface OrderSuccessModalProps {
 export default function OrderSuccessModal({
   isOpen,
   onClose,
+  onTrackInApp,
   orderData,
   items,
   whatsappUrl
@@ -70,20 +72,26 @@ export default function OrderSuccessModal({
 
               <div className="flex flex-col sm:flex-row gap-4 pt-8 border-t border-gray-100">
                 <button 
-                  onClick={onClose}
-                  className="btn-premium flex-1"
+                  onClick={onTrackInApp}
+                  className="btn-premium flex-1 bg-brand-primary text-white"
                 >
-                  Continue Browsing
+                  Track in App
                 </button>
                 <a 
                   href={whatsappUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="flex-1 flex items-center justify-center gap-2 bg-[#25D366] text-white py-4 font-bold uppercase tracking-widest text-xs hover:bg-opacity-90 transition-all"
+                  className="flex-1 flex items-center justify-center gap-2 border-2 border-[#25D366] text-[#25D366] py-3.5 font-bold uppercase tracking-widest text-[10px] hover:bg-[#25D366] hover:text-white transition-all"
                 >
-                  Track on WhatsApp <MessageCircle size={18} />
+                  WhatsApp <MessageCircle size={14} />
                 </a>
               </div>
+              <button 
+                onClick={onClose}
+                className="w-full mt-4 text-[10px] uppercase font-bold tracking-widest text-gray-400 hover:text-brand-primary transition-colors py-2"
+              >
+                Back to Home
+              </button>
             </div>
 
             <div className="w-full md:w-64 bg-gray-50 p-8 border-t md:border-t-0 md:border-l border-gray-200">

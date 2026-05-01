@@ -11,12 +11,11 @@ import AuthModal from './components/AuthModal';
 import Footer from './components/Footer';
 import WhatsAppButton from './components/WhatsAppButton';
 import { MenuItem, CartItem, CheckoutData } from './types';
-import { db, auth, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, setDoc, serverTimestamp, collection, addDoc, getDoc, updateDoc } from 'firebase/firestore';
-import { onAuthStateChanged, sendEmailVerification } from 'firebase/auth';
+import { supabase, handleSupabaseError, OperationType } from './lib/supabase';
 import { formatPrice } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertCircle, Send } from 'lucide-react';
+import { User } from '@supabase/supabase-js';
 
 export default function App() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -28,14 +27,16 @@ export default function App() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [lastOrderDetails, setLastOrderDetails] = useState<{data: CheckoutData, items: CartItem[]} | null>(null);
   const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [user, setUser] = useState<User | null>(null);
   const [isEmailVerificationSent, setIsEmailVerificationSent] = useState(false);
 
-  const user = auth.currentUser;
-
   const handleResendVerification = async () => {
-    if (user) {
+    if (user?.email) {
       try {
-        await sendEmailVerification(user);
+        await supabase.auth.resend({
+          type: 'signup',
+          email: user.email,
+        });
         setIsEmailVerificationSent(true);
         setTimeout(() => setIsEmailVerificationSent(false), 5000);
       } catch (error) {
@@ -46,47 +47,46 @@ export default function App() {
 
   const handleRefreshAuth = async () => {
     if (user) {
-      await user.reload();
-      // Force a re-render by creating a slight delay or just trusting the state will update
+      const { data } = await supabase.auth.refreshSession();
+      if (data.user) setUser(data.user);
       window.location.reload();
     }
   };
 
   useEffect(() => {
-    const syncUserProfile = async (u: { uid: string, email: string | null, displayName: string | null }) => {
-      const userRef = doc(db, 'users', u.uid);
+    const syncUserProfile = async (u: User) => {
       try {
-        const userSnap = await getDoc(userRef);
-        const userData = {
-          uid: u.uid,
-          email: u.email,
-          displayName: u.displayName || null,
-          updatedAt: serverTimestamp(),
-        };
-
-        if (!userSnap.exists()) {
-          await setDoc(userRef, {
-            ...userData,
-            createdAt: serverTimestamp(),
+        const { error } = await supabase
+          .from('profiles')
+          .upsert({
+            id: u.id,
+            email: u.email,
+            full_name: u.user_metadata?.full_name || null,
+            updated_at: new Date().toISOString(),
           });
-        } else {
-          await updateDoc(userRef, userData);
-        }
+        if (error) console.warn('Profile sync note:', error);
       } catch (error) {
-        console.warn('Profile sync note:', error);
+        console.warn('Profile sync error:', error);
       }
     };
 
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      if (u) {
-        syncUserProfile(u);
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user) syncUserProfile(session.user);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      if (currentUser) {
+        syncUserProfile(currentUser);
       } else {
-        // Clear tracking if user logs out
         setIsTrackingOpen(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => subscription.unsubscribe();
   }, []);
 
   const addToCart = useCallback((item: MenuItem) => {
@@ -127,10 +127,13 @@ export default function App() {
     const url = `https://wa.me/2348129382695?text=${message}`;
 
     try {
-      // Save to Firestore
+      // Save to Supabase
       const orderData = {
-        ...data,
-        userId: auth.currentUser?.uid || null,
+        name: data.name,
+        phone: data.phone,
+        address: data.address,
+        type: data.type,
+        user_id: user?.id || null,
         items: cart.map(item => ({
           id: item.id,
           name: item.name,
@@ -140,10 +143,11 @@ export default function App() {
         })),
         total: grandTotal,
         status: 'pending',
-        createdAt: serverTimestamp()
+        created_at: new Date().toISOString()
       };
 
-      await addDoc(collection(db, 'orders'), orderData);
+      const { error } = await supabase.from('orders').insert(orderData);
+      if (error) throw error;
 
       setLastOrderDetails({ data, items: [...cart] });
       setWhatsappUrl(url);
@@ -153,7 +157,7 @@ export default function App() {
       setCart([]);
     } catch (error) {
       setIsProcessing(false);
-      handleFirestoreError(error, OperationType.CREATE, 'orders');
+      handleSupabaseError(error, OperationType.CREATE, 'orders');
     }
   };
 
@@ -182,7 +186,7 @@ export default function App() {
       />
 
       <AnimatePresence>
-        {auth.currentUser && !auth.currentUser.emailVerified && (
+        {user && user.app_metadata?.provider !== 'google' && !user.email_confirmed_at && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -341,6 +345,11 @@ export default function App() {
       <OrderSuccessModal 
         isOpen={isOrderComplete}
         onClose={() => setIsOrderComplete(false)}
+        onTrackInApp={() => {
+          setIsOrderComplete(false);
+          setIsTrackingOpen(true);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         orderData={lastOrderDetails?.data || null}
         items={lastOrderDetails?.items || []}
         whatsappUrl={whatsappUrl}

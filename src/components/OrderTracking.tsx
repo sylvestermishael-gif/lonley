@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { supabase, handleSupabaseError, OperationType } from '../lib/supabase';
 import { Order, OrderStatus } from '../types';
 import { formatPrice } from '../lib/utils';
 import { Package, Truck, CheckCircle2, Clock, XCircle, ArrowLeft, ChevronRight } from 'lucide-react';
+
+import { User as SupabaseUser } from '@supabase/supabase-js';
 
 interface OrderTrackingProps {
   onBack: () => void;
@@ -30,33 +31,61 @@ export default function OrderTracking({ onBack }: OrderTrackingProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [currentUser, setCurrentUser] = useState<SupabaseUser | null>(null);
 
   useEffect(() => {
-    const user = auth.currentUser;
-    if (!user) {
-      const timer = setTimeout(() => setLoading(false), 0);
-      return () => clearTimeout(timer);
-    }
+    const fetchOrders = async (userId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        
+        if (error) throw error;
 
-    const q = query(
-      collection(db, 'orders'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
-    );
+        // Map camelCase to snake_case if necessary, but we'll try to keep consistency
+        const mappedOrders = (data || []).map((o) => ({
+          ...o,
+          userId: o.user_id,
+          createdAt: { toDate: () => new Date(o.created_at) } // Mock Firestore date for minimal JSX changes
+        })) as unknown as Order[];
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const ordersData = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Order[];
-      setOrders(ordersData);
-      setLoading(false);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'orders');
-      setLoading(false);
-    });
+        setOrders(mappedOrders);
+      } catch (error) {
+        handleSupabaseError(error as { message?: string }, OperationType.LIST, 'orders');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    return () => unsubscribe();
+    const setupAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setCurrentUser(session?.user ?? null);
+      if (session?.user) {
+        fetchOrders(session.user.id);
+      } else {
+        setLoading(false);
+      }
+
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const user = session?.user ?? null;
+        setCurrentUser(user);
+        if (user) {
+          fetchOrders(user.id);
+        } else {
+          setOrders([]);
+          setLoading(false);
+        }
+      });
+
+      return subscription;
+    };
+
+    let authSub: { unsubscribe: () => void } | undefined;
+    setupAuth().then(sub => { authSub = sub; });
+
+    return () => authSub?.unsubscribe();
   }, []);
 
   if (loading) {
@@ -88,7 +117,15 @@ export default function OrderTracking({ onBack }: OrderTrackingProps) {
           </div>
         </div>
 
-        {orders.length === 0 ? (
+        {!currentUser ? (
+          <div className="text-center py-20 bg-white border border-brand-primary/5 shadow-sm p-12">
+            <XCircle className="mx-auto text-gray-300 mb-6" size={48} />
+            <h3 className="text-2xl font-serif mb-4">Sign In Required</h3>
+            <p className="text-gray-500 mb-8 max-w-sm mx-auto leading-relaxed">
+              Please sign in to view and track your orders.
+            </p>
+          </div>
+        ) : orders.length === 0 ? (
           <div className="text-center py-20 bg-white border border-brand-primary/5 shadow-sm p-12">
             <Package className="mx-auto text-gray-300 mb-6" size={48} />
             <h3 className="text-2xl font-serif mb-4">No Orders Found</h3>
@@ -163,20 +200,62 @@ export default function OrderTracking({ onBack }: OrderTrackingProps) {
                       className="overflow-hidden border-t border-brand-primary/5"
                     >
                       <div className="p-6 md:p-8 bg-gray-50/30 grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="md:col-span-2 py-8 border-y border-brand-primary/5 my-4">
+                          <h5 className="text-[10px] font-bold uppercase tracking-widest text-brand-primary mb-10 text-center">Order Journey</h5>
+                          <div className="relative flex justify-between items-center max-w-3xl mx-auto px-4">
+                            {/* Track line */}
+                            <div className="absolute top-1/2 left-0 w-full h-[2px] bg-gray-100 -translate-y-1/2 z-0" />
+                            <div 
+                              className="absolute top-1/2 left-0 h-[2px] bg-brand-primary -translate-y-1/2 z-0 transition-all duration-1000" 
+                              style={{ 
+                                width: order.status === 'pending' ? '12.5%' : 
+                                       order.status === 'confirmed' ? '37.5%' : 
+                                       order.status === 'delivering' ? '62.5%' : 
+                                       order.status === 'completed' ? '100%' : '0%' 
+                              }} 
+                            />
+
+                            {(['pending', 'confirmed', 'delivering', 'completed'] as OrderStatus[]).map((status, index) => {
+                              const isPast = (['pending', 'confirmed', 'delivering', 'completed'] as OrderStatus[]).indexOf(order.status) >= index;
+                              const isCurrent = order.status === status;
+
+                              return (
+                                <div key={status} className="relative z-10 flex flex-col items-center">
+                                  <div className={cn(
+                                    "w-10 h-10 rounded-full flex items-center justify-center border-4 transition-all duration-500",
+                                    isPast ? "bg-brand-primary border-brand-primary text-white" : "bg-white border-gray-100 text-gray-300",
+                                    isCurrent && "scale-125 shadow-lg shadow-brand-primary/20 ring-4 ring-brand-primary/10"
+                                  )}>
+                                    {React.cloneElement(statusIcons[status] as React.ReactElement, { size: 20, className: isPast ? 'text-white' : 'text-gray-300' })}
+                                  </div>
+                                  <div className="absolute -bottom-8 w-max flex flex-col items-center">
+                                    <span className={cn(
+                                      "text-[8px] font-bold uppercase tracking-widest transition-colors",
+                                      isPast ? "text-brand-primary" : "text-gray-400"
+                                    )}>
+                                      {status}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
                         <div>
                           <h5 className="text-[10px] font-bold uppercase tracking-widest text-brand-primary mb-6">Delivery Details</h5>
                           <div className="space-y-4">
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Name</p>
-                              <p className="text-sm font-medium">{order.name}</p>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Order Method</p>
+                              <p className="text-sm font-medium capitalize">{order.type}</p>
                             </div>
                             <div>
                               <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Address</p>
                               <p className="text-sm font-medium">{order.address}</p>
                             </div>
                             <div>
-                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Phone</p>
-                              <p className="text-sm font-medium">{order.phone}</p>
+                              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Customer</p>
+                              <p className="text-sm font-medium">{order.name} ({order.phone})</p>
                             </div>
                           </div>
                         </div>
